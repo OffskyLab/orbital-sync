@@ -24,6 +24,9 @@ struct DaemonCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Path to node private key (PEM) for mTLS")
     var tlsKey: String?
 
+    @Option(name: .long, help: "Rendezvous server address (host:port)")
+    var rendezvous: String?
+
     func run() async throws {
         let dir = syncDir ?? defaultSyncDirectory()
         let resolvedDir = URL(fileURLWithPath: dir).resolvingSymlinksInPath().path
@@ -43,7 +46,13 @@ struct DaemonCommand: AsyncParsableCommand {
         print("Sync directory: \(resolvedDir)")
         print("Control socket: \(socketPath)")
 
-        let daemon = SyncDaemon(port: port, syncDirectory: dir, socketPath: socketPath, tls: tls)
+        let daemon = SyncDaemon(
+            port: port,
+            syncDirectory: dir,
+            socketPath: socketPath,
+            tls: tls,
+            rendezvousAddress: rendezvous
+        )
         try await daemon.start()
     }
 

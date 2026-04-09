@@ -81,6 +81,36 @@ struct FileChangeEntry: Codable, Sendable {
     let modifiedAt: Date?
 }
 
+// MARK: - Rendezvous
+
+struct RVRegisterBody: Codable, Sendable {
+    let peerID: String
+    let peerName: String
+    let teamID: String
+    let host: String
+    let port: Int
+}
+
+struct RVRegisterReplyBody: Codable, Sendable {
+    let peers: [RVPeerEntry]
+}
+
+struct RVPeerEntry: Codable, Sendable {
+    let peerID: String
+    let peerName: String
+    let host: String
+    let port: Int
+}
+
+struct RVHeartbeatBody: Codable, Sendable {
+    let peerID: String
+    let teamID: String
+}
+
+struct RVHeartbeatReplyBody: Codable, Sendable {
+    let ok: Bool
+}
+
 // MARK: - Control socket (CLI → Daemon)
 
 struct ControlRequest: Codable, Sendable {

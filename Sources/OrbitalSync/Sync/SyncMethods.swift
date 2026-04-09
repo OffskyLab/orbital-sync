@@ -5,4 +5,9 @@ enum SyncMethod {
     static let filePull = "sync.file.pull"
     static let filePush = "sync.file.push"
     static let fileDelete = "sync.file.delete"
+
+    // Rendezvous
+    static let rvRegister = "rv.register"
+    static let rvHeartbeat = "rv.heartbeat"
+    static let rvUnregister = "rv.unregister"
 }

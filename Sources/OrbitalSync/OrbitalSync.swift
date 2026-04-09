@@ -12,6 +12,7 @@ struct OrbitalSyncCommand: AsyncParsableCommand {
             PairCommand.self,
             StatusCommand.self,
             TeamCommand.self,
+            RendezvousCommand.self,
         ]
     )
 

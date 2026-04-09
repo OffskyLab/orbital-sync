@@ -15,6 +15,7 @@ actor SyncDaemon {
     let socketPath: String
     let peerID: String
     let tls: SyncTLSContext?
+    let rendezvousAddress: String?
     let logger = Logger(label: "orbital-sync")
 
     private var server: NMTServer?
@@ -26,16 +27,18 @@ actor SyncDaemon {
     #if canImport(Network)
     private var discovery: BonjourDiscovery?
     #endif
+    private var rvClient: RendezvousClient?
 
     static let version = "0.1.0"
 
-    init(port: Int, syncDirectory: String, socketPath: String, tls: SyncTLSContext? = nil) {
+    init(port: Int, syncDirectory: String, socketPath: String, tls: SyncTLSContext? = nil, rendezvousAddress: String? = nil) {
         self.port = port
         // Resolve symlinks (e.g. /tmp → /private/tmp on macOS)
         self.syncDirectory = Self.resolveRealPath(syncDirectory)
         self.socketPath = socketPath
         self.peerID = UUID().uuidString
         self.tls = tls
+        self.rendezvousAddress = rendezvousAddress
     }
 
     private static func resolveRealPath(_ path: String) -> String {
@@ -119,13 +122,42 @@ actor SyncDaemon {
         self.discovery = disc
         #endif
 
+        // 6. Register with rendezvous server (cross-network discovery)
+        if let rvAddr = rendezvousAddress, let team = config.team {
+            let parts = rvAddr.split(separator: ":")
+            if parts.count == 2, let rvPort = Int(parts[1]) {
+                let rvHost = String(parts[0])
+                let rv = RendezvousClient(host: rvHost, port: rvPort)
+                self.rvClient = rv
+
+                Task {
+                    do {
+                        let info = await daemonRef.localPeerInfo()
+                        let peers = try await rv.register(
+                            peerID: peerID, peerName: info.peerName,
+                            teamID: team.id, host: "", port: port
+                        )
+                        for rvPeer in peers {
+                            let alreadyPaired = await daemonRef.hasPeer(rvPeer.peerID)
+                            if !alreadyPaired {
+                                try await daemonRef.addPeer(host: rvPeer.host, port: rvPeer.port)
+                            }
+                        }
+                    } catch {
+                        logger.warning("Rendezvous registration failed: \(error)")
+                    }
+                }
+            }
+        }
+
         logger.info("Daemon ready")
 
-        // 6. Block until terminated
+        // 7. Block until terminated
         try await server?.listen()
     }
 
     func stop() async throws {
+        await rvClient?.disconnect()
         #if canImport(Network)
         await discovery?.stopBrowsing()
         await discovery?.stopAdvertising()
