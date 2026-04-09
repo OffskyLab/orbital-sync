@@ -14,6 +14,7 @@ actor SyncDaemon {
     let syncDirectory: String
     let socketPath: String
     let peerID: String
+    let tls: SyncTLSContext?
     let logger = Logger(label: "orbital-sync")
 
     private var server: NMTServer?
@@ -28,12 +29,13 @@ actor SyncDaemon {
 
     static let version = "0.1.0"
 
-    init(port: Int, syncDirectory: String, socketPath: String) {
+    init(port: Int, syncDirectory: String, socketPath: String, tls: SyncTLSContext? = nil) {
         self.port = port
         // Resolve symlinks (e.g. /tmp → /private/tmp on macOS)
         self.syncDirectory = Self.resolveRealPath(syncDirectory)
         self.socketPath = socketPath
         self.peerID = UUID().uuidString
+        self.tls = tls
     }
 
     private static func resolveRealPath(_ path: String) -> String {
@@ -63,7 +65,7 @@ actor SyncDaemon {
         // 1. Start NMT server for peer connections
         let handler = SyncHandler(daemon: self)
         let address = try SocketAddress(ipAddress: "0.0.0.0", port: port)
-        server = try await NMTServer.bind(on: address, handler: handler)
+        server = try await NMTServer.bind(on: address, handler: handler, tls: tls)
         logger.info("NMT server bound on port \(port)")
 
         // 2. Start control socket for CLI commands
@@ -146,7 +148,7 @@ actor SyncDaemon {
 
     func addPeer(host: String, port: Int, skipHandshake: Bool = false) async throws {
         let address = try SocketAddress(ipAddress: host, port: port)
-        let client = try await NMTClient.connect(to: address)
+        let client = try await NMTClient.connect(to: address, tls: tls)
 
         // Handshake
         let info = localPeerInfo()
