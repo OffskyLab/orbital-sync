@@ -20,7 +20,8 @@ actor SyncDaemon {
 
     init(port: Int, syncDirectory: String, socketPath: String) {
         self.port = port
-        self.syncDirectory = syncDirectory
+        // Resolve symlinks (e.g. /tmp → /private/tmp on macOS)
+        self.syncDirectory = URL(fileURLWithPath: syncDirectory).resolvingSymlinksInPath().path
         self.socketPath = socketPath
         self.peerID = UUID().uuidString
     }
@@ -28,6 +29,9 @@ actor SyncDaemon {
     // MARK: - Lifecycle
 
     func start() async throws {
+        // Ensure sync directory exists
+        try FileManager.default.createDirectory(atPath: syncDirectory, withIntermediateDirectories: true)
+
         logger.info("Starting daemon", metadata: [
             "peerID": "\(peerID)",
             "port": "\(port)",
@@ -271,6 +275,8 @@ actor SyncDaemon {
     }
 
     private func handleFileChange(_ change: FileChange) async {
+        logger.info("File changed: \(change.kind) \(change.path), peers: \(peers.count)")
+
         let entry = FileChangeEntry(
             path: change.path,
             kind: FileChangeEntry.Kind(rawValue: "\(change.kind)") ?? .modified,

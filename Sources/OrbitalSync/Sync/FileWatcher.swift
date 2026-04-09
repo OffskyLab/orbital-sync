@@ -10,6 +10,12 @@ struct FileWatcher: Sendable {
     let directory: String
     let logger = Logger(label: "orbital-sync.watcher")
 
+    init(directory: String) {
+        // Resolve symlinks (e.g. /tmp → /private/tmp on macOS)
+        let url = URL(fileURLWithPath: directory).resolvingSymlinksInPath()
+        self.directory = url.path
+    }
+
     func watch() -> AsyncStream<FileChange> {
         #if canImport(CoreServices)
         return watchWithFSEvents()

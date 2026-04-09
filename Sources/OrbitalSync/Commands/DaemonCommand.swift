@@ -17,9 +17,10 @@ struct DaemonCommand: AsyncParsableCommand {
 
     func run() async throws {
         let dir = syncDir ?? defaultSyncDirectory()
+        let resolvedDir = URL(fileURLWithPath: dir).resolvingSymlinksInPath().path
         let socketPath = resolveSocketPath(from: globals.socket)
         print("Starting orbital-sync daemon on port \(port)")
-        print("Sync directory: \(dir)")
+        print("Sync directory: \(resolvedDir)")
         print("Control socket: \(socketPath)")
 
         let daemon = SyncDaemon(port: port, syncDirectory: dir, socketPath: socketPath)
