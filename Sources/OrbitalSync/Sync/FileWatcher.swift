@@ -1,12 +1,8 @@
 import Foundation
 
 /// Watches a directory for file changes and notifies via AsyncStream.
-actor FileWatcher {
+struct FileWatcher: Sendable {
     let directory: String
-
-    init(directory: String) {
-        self.directory = directory
-    }
 
     /// Start watching and yield changed file paths.
     func watch() -> AsyncStream<FileChange> {

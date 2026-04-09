@@ -10,7 +10,26 @@ struct PairCommand: AsyncParsableCommand {
     var address: String
 
     func run() async throws {
-        print("Pairing with \(address)...")
-        // TODO: Send handshake via Unix domain socket to running daemon
+        let parts = address.split(separator: ":")
+        guard parts.count == 2, let port = Int(parts[1]) else {
+            print("Invalid address format. Use host:port")
+            throw ExitCode.failure
+        }
+        let host = String(parts[0])
+
+        let client = ControlClient()
+        do {
+            let response = try client.send(ControlRequest(
+                command: "pair",
+                args: ["host": host, "port": String(port)]
+            ))
+            if response.ok {
+                print("Paired with \(address)")
+            } else {
+                print("Error: \(response.message)")
+            }
+        } catch SyncError.daemonNotRunning {
+            print("Daemon is not running. Start it with: orbital-sync daemon")
+        }
     }
 }

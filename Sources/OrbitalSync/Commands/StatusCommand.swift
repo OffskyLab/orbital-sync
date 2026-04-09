@@ -7,7 +7,19 @@ struct StatusCommand: AsyncParsableCommand {
     )
 
     func run() async throws {
-        // TODO: Query daemon via Unix domain socket
-        print("Checking daemon status...")
+        let client = ControlClient()
+        do {
+            let response = try client.send(ControlRequest(command: "status", args: nil))
+            if response.ok {
+                print(response.message)
+                if let peers = response.data?["peers"], !peers.isEmpty {
+                    print("Peers: \(peers)")
+                }
+            } else {
+                print("Error: \(response.message)")
+            }
+        } catch SyncError.daemonNotRunning {
+            print("Daemon is not running. Start it with: orbital-sync daemon")
+        }
     }
 }
