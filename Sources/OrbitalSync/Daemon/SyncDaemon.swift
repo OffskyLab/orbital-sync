@@ -4,6 +4,10 @@ import NIO
 import Logging
 import Crypto
 
+#if canImport(Network)
+import Network
+#endif
+
 /// Core daemon that manages NMT server, peer connections, file watching, and control socket.
 actor SyncDaemon {
     let port: Int
@@ -18,6 +22,9 @@ actor SyncDaemon {
     private var fileWatchTask: Task<Void, Never>?
     /// Paths recently written by sync — skip these in FileWatcher to avoid ping-pong loops.
     private var recentSyncWrites: [String: Date] = [:]
+    #if canImport(Network)
+    private var discovery: BonjourDiscovery?
+    #endif
 
     static let version = "0.1.0"
 
@@ -90,13 +97,37 @@ actor SyncDaemon {
             }
         }
 
+        // 5. Start mDNS discovery (macOS only)
+        #if canImport(Network)
+        let info = localPeerInfo()
+        let disc = BonjourDiscovery(
+            peerID: peerID,
+            peerName: info.peerName,
+            port: port,
+            teamID: config.team?.id,
+            onPeerFound: { [weak self] peer in
+                guard let self else { return }
+                let alreadyPaired = await self.hasPeer(peer.peerID)
+                guard !alreadyPaired else { return }
+                await self.resolveAndConnect(peer)
+            }
+        )
+        try await disc.startAdvertising()
+        await disc.startBrowsing()
+        self.discovery = disc
+        #endif
+
         logger.info("Daemon ready")
 
-        // 5. Block until terminated
+        // 6. Block until terminated
         try await server?.listen()
     }
 
     func stop() async throws {
+        #if canImport(Network)
+        await discovery?.stopBrowsing()
+        await discovery?.stopAdvertising()
+        #endif
         fileWatchTask?.cancel()
         for (_, peer) in peers {
             try await peer.client.close()
@@ -384,6 +415,41 @@ actor SyncDaemon {
         // Handle server-push events from peers (e.g., file change notifications)
         logger.debug("Received push from \(peerID): \(matter.type)")
     }
+
+    #if canImport(Network)
+    /// Resolve a Bonjour-discovered peer's endpoint and connect via NMT.
+    private func resolveAndConnect(_ peer: DiscoveredPeer) async {
+        let nmtPort = peer.nmtPort
+        let peerName = peer.peerName
+
+        // Use NWConnection to resolve the Bonjour endpoint to an IP address
+        let connection = NWConnection(to: peer.endpoint, using: .tcp)
+        connection.stateUpdateHandler = { [weak self] state in
+            guard let self else { return }
+            switch state {
+            case .ready:
+                if let innerEndpoint = connection.currentPath?.remoteEndpoint,
+                   case .hostPort(let host, _) = innerEndpoint {
+                    let hostStr = "\(host)"
+                    connection.cancel()
+
+                    Task {
+                        do {
+                            try await self.addPeer(host: hostStr, port: nmtPort)
+                        } catch {
+                            self.logger.warning("mDNS auto-connect to \(peerName) failed: \(error)")
+                        }
+                    }
+                }
+            case .failed:
+                connection.cancel()
+            default:
+                break
+            }
+        }
+        connection.start(queue: DispatchQueue(label: "orbital-sync.resolve"))
+    }
+    #endif
 
     private func handleControl(_ request: ControlRequest) async -> ControlResponse {
         switch request.command {
