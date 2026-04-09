@@ -109,10 +109,12 @@ struct TeamInviteCommand: AsyncParsableCommand {
             let addr = ptr.pointee.ifa_addr.pointee
             guard addr.sa_family == UInt8(AF_INET) else { continue }
             let name = String(cString: ptr.pointee.ifa_name)
-            guard name.hasPrefix("en") else { continue }
+            // macOS: en0/en1, Linux: eth0/wlan0
+            guard name.hasPrefix("en") || name.hasPrefix("eth") || name.hasPrefix("wlan") else { continue }
 
             var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            getnameinfo(ptr.pointee.ifa_addr, socklen_t(addr.sa_len),
+            let addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+            getnameinfo(ptr.pointee.ifa_addr, addrLen,
                         &hostname, socklen_t(hostname.count),
                         nil, 0, NI_NUMERICHOST)
             let ip: String

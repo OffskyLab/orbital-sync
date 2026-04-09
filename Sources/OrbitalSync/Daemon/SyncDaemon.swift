@@ -419,14 +419,6 @@ actor SyncDaemon {
 
         logger.info("File changed: \(change.kind) \(change.path), peers: \(peers.count)")
 
-        let entry = FileChangeEntry(
-            path: change.path,
-            kind: FileChangeEntry.Kind(rawValue: "\(change.kind)") ?? .modified,
-            hash: computeHash(of: (syncDirectory as NSString).appendingPathComponent(change.path)),
-            modifiedAt: Date()
-        )
-        let body = FileChangedBody(peerID: peerID, change: entry)
-
         // Push file content to all peers
         for (_, peer) in peers {
             do {

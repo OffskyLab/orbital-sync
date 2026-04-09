@@ -23,7 +23,11 @@ struct ControlClient {
         let requestData = try JSONEncoder().encode(request)
 
         // Simple synchronous Unix socket communication
+        #if canImport(Glibc)
+        let fd = socket(AF_UNIX, Int32(SOCK_STREAM.rawValue), 0)
+        #else
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        #endif
         guard fd >= 0 else { throw SyncError.daemonNotRunning }
         defer { close(fd) }
 
