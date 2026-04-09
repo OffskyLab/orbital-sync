@@ -6,6 +6,7 @@ struct HandshakeBody: Codable, Sendable {
     let peerID: String
     let peerName: String
     let version: String
+    let port: Int
     let teamID: String?
 }
 

@@ -76,7 +76,11 @@ actor SyncDaemon {
 
     // MARK: - Peer management
 
-    func addPeer(host: String, port: Int) async throws {
+    func hasPeer(_ peerID: String) -> Bool {
+        peers[peerID] != nil
+    }
+
+    func addPeer(host: String, port: Int, skipHandshake: Bool = false) async throws {
         let address = try SocketAddress(ipAddress: host, port: port)
         let client = try await NMTClient.connect(to: address)
 
@@ -86,6 +90,7 @@ actor SyncDaemon {
             peerID: info.peerID,
             peerName: info.peerName,
             version: info.version,
+            port: self.port,
             teamID: nil
         )
         let argData = try JSONEncoder().encode(handshakeBody)
@@ -107,6 +112,13 @@ actor SyncDaemon {
         guard handshakeReply.accepted else {
             try await client.close()
             logger.warning("Peer rejected handshake: \(host):\(port)")
+            return
+        }
+
+        // Skip if already paired (prevents infinite reverse-pair loop)
+        guard !hasPeer(handshakeReply.peerID) else {
+            try await client.close()
+            logger.debug("Already paired with \(handshakeReply.peerName), skipping")
             return
         }
 

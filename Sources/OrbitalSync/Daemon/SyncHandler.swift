@@ -23,7 +23,7 @@ struct SyncHandler: NMTHandler {
 
         switch body.method {
         case SyncMethod.handshake:
-            return try await handleHandshake(matter: matter, body: body)
+            return try await handleHandshake(matter: matter, body: body, channel: channel)
         case SyncMethod.manifest:
             return try await handleManifest(matter: matter, body: body)
         case SyncMethod.filePull:
@@ -36,9 +36,30 @@ struct SyncHandler: NMTHandler {
         }
     }
 
-    private func handleHandshake(matter: Matter, body: CallBody) async throws -> Matter? {
+    private func handleHandshake(matter: Matter, body: CallBody, channel: Channel) async throws -> Matter? {
         let request = try decodeArgument(HandshakeBody.self, from: body)
         logger.info("Handshake from \(request.peerName) (\(request.peerID))")
+
+        // Resolve the remote peer's IP from the channel
+        let remoteHost: String
+        if let remoteAddress = channel.remoteAddress {
+            remoteHost = remoteAddress.ipAddress ?? "127.0.0.1"
+        } else {
+            remoteHost = "127.0.0.1"
+        }
+
+        // Reverse-pair: connect back to the remote peer so both sides can push
+        let alreadyPaired = await daemon.hasPeer(request.peerID)
+        if !alreadyPaired {
+            logger.info("Reverse-pairing to \(request.peerName) at \(remoteHost):\(request.port)")
+            Task {
+                do {
+                    try await daemon.addPeer(host: remoteHost, port: request.port, skipHandshake: false)
+                } catch {
+                    logger.error("Reverse-pair failed: \(error)")
+                }
+            }
+        }
 
         let info = await daemon.localPeerInfo()
         let reply = HandshakeReplyBody(
