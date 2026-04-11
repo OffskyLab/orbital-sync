@@ -7,10 +7,6 @@ struct RendezvousTests {
     @Test func registerReturnsPeerList() async throws {
         let server = RendezvousServer(port: 19101)
         let serverTask = Task { try? await server.start() }
-        defer {
-            serverTask.cancel()
-            Task { try? await server.stop() }
-        }
         try await Task.sleep(for: .milliseconds(200))
 
         let client1 = RendezvousClient(host: "127.0.0.1", port: 19101)
@@ -28,15 +24,13 @@ struct RendezvousTests {
 
         await client1.disconnect()
         await client2.disconnect()
+        serverTask.cancel()
+        try? await server.stop()
     }
 
     @Test func heartbeatKeepsRegistrationAlive() async throws {
         let server = RendezvousServer(port: 19102)
         let serverTask = Task { try? await server.start() }
-        defer {
-            serverTask.cancel()
-            Task { try? await server.stop() }
-        }
         try await Task.sleep(for: .milliseconds(200))
 
         let client = RendezvousClient(host: "127.0.0.1", port: 19102)
@@ -54,15 +48,13 @@ struct RendezvousTests {
 
         await client.disconnect()
         await client2.disconnect()
+        serverTask.cancel()
+        try? await server.stop()
     }
 
     @Test func differentTeamsAreIsolated() async throws {
         let server = RendezvousServer(port: 19103)
         let serverTask = Task { try? await server.start() }
-        defer {
-            serverTask.cancel()
-            Task { try? await server.stop() }
-        }
         try await Task.sleep(for: .milliseconds(200))
 
         let clientA = RendezvousClient(host: "127.0.0.1", port: 19103)
@@ -74,5 +66,7 @@ struct RendezvousTests {
 
         await clientA.disconnect()
         await clientB.disconnect()
+        serverTask.cancel()
+        try? await server.stop()
     }
 }

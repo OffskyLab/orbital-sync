@@ -11,6 +11,7 @@ actor RendezvousServer {
     let logger = Logger(label: "orbital-sync.rendezvous")
 
     private var serverListener: PeerDispatcherListener?
+    private var cleanupTask: Task<Void, Never>?
     /// teamID → [peerID: registration]
     private var registry: [String: [String: PeerRegistration]] = [:]
 
@@ -33,7 +34,7 @@ actor RendezvousServer {
         }
         logger.info("Rendezvous server listening on port \(port)")
 
-        Task {
+        cleanupTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 await self.cleanupStale()
@@ -44,6 +45,8 @@ actor RendezvousServer {
     }
 
     func stop() async throws {
+        cleanupTask?.cancel()
+        cleanupTask = nil
         try await serverListener?.close()
     }
 

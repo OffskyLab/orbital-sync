@@ -11,6 +11,7 @@ actor RendezvousClient {
     let logger = Logger(label: "orbital-sync.rv-client")
 
     private var dispatcher: PeerDispatcher?
+    private var runTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
     private var registeredPeerID: String?
     private var registeredTeamID: String?
@@ -23,6 +24,11 @@ actor RendezvousClient {
     /// Connect to the rendezvous server and register this peer.
     /// Returns list of other peers in the same team.
     func register(peerID: String, peerName: String, teamID: String, host: String, port: Int) async throws -> [RVPeerEntry] {
+        // Clean up any previous registration before registering again
+        if dispatcher != nil {
+            await disconnect()
+        }
+
         let address = try SocketAddress(ipAddress: serverHost, port: serverPort)
         let d = try await PeerDispatcher.connect(to: address)
         self.dispatcher = d
@@ -30,7 +36,7 @@ actor RendezvousClient {
         self.registeredTeamID = teamID
 
         // Start run() BEFORE issuing any request — ensures replies are routed
-        Task { try? await d.run() }
+        runTask = Task { try? await d.run() }
 
         let reply = try await d.request(
             RVRegister(peerID: peerID, peerName: peerName, teamID: teamID, host: host, port: port),
@@ -38,10 +44,10 @@ actor RendezvousClient {
         )
 
         // Start heartbeat loop
-        heartbeatTask = Task { [weak self] in
+        heartbeatTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(25))
-                await self?.sendHeartbeatNow()
+                await self.sendHeartbeatNow()
             }
         }
 
@@ -52,6 +58,8 @@ actor RendezvousClient {
     func disconnect() async {
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        runTask?.cancel()
+        runTask = nil
         try? await dispatcher?.peer.close()
         dispatcher = nil
     }
