@@ -1,5 +1,5 @@
 {
-  "originHash" : "92e8284fef4aaf1b31aed5042a094a8f6b9942ca4d0540b66d2fe55f7499f5c2",
+  "originHash" : "487e4aec4165b840c7578a161a287fe61e7ebc234bbd41aa702baff1e34e398d",
   "pins" : [
     {
       "identity" : "swift-algorithms",
@@ -141,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/OffskyLab/swift-nmtp.git",
       "state" : {
-        "branch" : "feature/nmtp-peer",
-        "revision" : "1ef40c7924c35f4f457018fe35cb5fb5b03c884a"
+        "revision" : "9613ed4144f2237fc2b75afdc195fdfbe30eaf79",
+        "version" : "0.1.0"
       }
     },
     {
